@@ -3,3 +3,10 @@
 2) Написать бейзлайн - nearest neighborhood  по статье https://arxiv.org/pdf/1505.04467.pdf
 4) Разобраться с тем, как оценивать модель(в апи к COCO есть оценщик)
 5) Запустить модель на TensorFlow https://github.com/PeterZaidel/captionsproject
+
+**SMALL UPD:**
+**preinstall.sh**
+Скачает репозиторий с pycocotools и установит. Новый репозиторий игнорится гитом.
+
+**get_data.sh**
+Скачает и распакует данные в './coco_dataset/'. Лучше делать в новом скрине, ибо долго. Датасет игнорится гитом.
