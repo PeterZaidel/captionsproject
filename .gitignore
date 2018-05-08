@@ -2,3 +2,4 @@ coco
 coco_dataset
 PavelStuff.ipynb
 .ipynb_checkpoints/PavelStuff-checkpoint.ipynb
+models/knn/*.pth
