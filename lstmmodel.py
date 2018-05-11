@@ -28,6 +28,7 @@ import numpy as np
 import skimage.io as io
 import matplotlib.pyplot as plt
 import pylab
+import os
 pylab.rcParams['figure.figsize'] = (8.0, 10.0)
 from torch.utils.data import Dataset, DataLoader
 
@@ -188,7 +189,15 @@ def get_alexnet_features_dim(imsize):
 # In[11]:
 
 print("Creating dictionary......")
-words2ids, ids2words  = generate_vocab_dicts(trainDataset)
+if os.path.exists('dictionaries.tar.gz'):
+	print("loading dictionary")
+	dic_state = torch.load('dictionaries.tar.gz')
+	words2ids = dic_state['words2ids']
+	ids2words = dic_state['ids2words']
+else:
+	words2ids, ids2words  = generate_vocab_dicts(trainDataset)
+	print("saving dictionary")
+	torch.save({'words2ids': words2ids, 'ids2words': ids2words }, 'dictionaries.tar.gz')
 
 
 # In[12]:
@@ -395,7 +404,7 @@ X = Variable(sample['image'])
 pred = lstmnet.forward(X)
 y = sample['anns']
 y = Variable(y) 
-loss = nn.NLLLoss2d()(pred.view(pred.shape[0]*pred.shape[1], pred.shape[2]), y.view(-1))
+loss = nn.NLLLoss()(pred.view(pred.shape[0]*pred.shape[1], pred.shape[2]), y.view(-1))
 
 
 loss.backward()
@@ -423,8 +432,6 @@ def open_checkpoint(is_best = False, filename='checkpoint.pth.tar'):
 # In[149]:
 
 
-train(lstmnet, trainDataLoader, testDataLoader, 20)
-
 
 
 def train(network, train_dataloader, test_dataloader,
@@ -437,11 +444,13 @@ def train(network, train_dataloader, test_dataloader,
     
     train_loss_epochs = []
     test_loss_epochs = []
-    optimizer = optim(network.parameters(), lr=0.001)
+
+    network.freeze_cnn()
+    optimizer = optim(filter(lambda p: p.requires_grad, network.parameters()), lr=0.001)
     best_test_score = 10**6
     
-    sheduler = lr_scheduler.StepLR(optimizer_conv, step_size=7, gamma=0.1)
-    network.freeze_cnn()
+    sheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+    
     
     try:
         for epoch in range(epochs):
@@ -461,10 +470,10 @@ def train(network, train_dataloader, test_dataloader,
                 y = Variable(y)
                 
                 
-                prediction = network(X)
-                prediction = nn.LogSoftmax(prediction).max(2)[1]
+                pred = network(X)
+                #prediction = nn.LogSoftmax(prediction).max(2)[1]
                 
-                loss_batch = loss(prediction, y)
+                loss_batch = loss(pred.view(pred.shape[0]*pred.shape[1], pred.shape[2]), y.view(-1))
                 losses.append(loss_batch.data[0])
                 
                 optimizer.zero_grad()
@@ -480,8 +489,8 @@ def train(network, train_dataloader, test_dataloader,
                 
                 y = Variable(y)
                 
-                prediction = network(X)
-                loss_batch = loss(prediction, y)
+                pred = network(X)
+                loss_batch = loss(pred.view(pred.shape[0]*pred.shape[1], pred.shape[2]), y.view(-1))
                 losses.append(loss_batch.data[0])
                 
             test_loss_epochs.append(np.mean(losses))
@@ -510,3 +519,5 @@ def train(network, train_dataloader, test_dataloader,
     plt.savefig('lstm_training.png')
   #  plt.show()
 
+
+train(lstmnet, trainDataLoader, testDataLoader, 20)
