@@ -39,13 +39,14 @@ class MSCOCODataset(Dataset):
         return result
         
         
-    def __init__(self, annFile, imagesDir, preload = False, transform = None, mode = 'pic2many'):
+    def __init__(self, annFile, imagesDir, preload = False, transform = None, mode = 'pic2many', text_transform = None):
         self.transform = transform
         self.coco = COCO(annFile)
         self.imagesDir = imagesDir
         self.imageids = self.coco.getImgIds()
         self.annids = self.coco.getAnnIds()
         self._data_preload = []
+        self.text_transform = text_transform
         
         self.mode = mode
         
@@ -138,8 +139,17 @@ class MSCOCODataset(Dataset):
         image = numpy2image(io.imread(img_file_name))
         if self.transform:
             image = self.transform(image)
+            
+        if self.text_transform:
+            if self.mode == PIC2MANY:
+                for idx in range(len(anns)):
+                    anns[idx] = self.text_transform(anns[idx])
+                    
+            elif self.mode == PIC2RAND or self.mode == ANN2PIC:
+                anns = self.text_transform(anns)
+                
         
-        sample = {'imid': imid, 'annids': annids ,'image': image, 'anns': anns}
+        sample = {'imid': imid, 'image': image, 'anns': anns}
 
         return sample
             
