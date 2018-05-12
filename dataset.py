@@ -10,6 +10,8 @@ from pycocotools.coco import COCO
 import skimage.io as io
 from torch.utils.data import Dataset, DataLoader
 import random
+from autocorrect import spell
+import os
 
 import tqdm
 
@@ -27,7 +29,7 @@ ANN2PIC = 'ann2pic'
 class MSCOCODataset(Dataset):
     """MSCOCO Dataset"""
     
-    def get_anns(self):
+    def get_image2anns(self):
         result = []
         for imid in self.imageids:
             annIds = self.coco.getAnnIds(imgIds=imid)
@@ -37,24 +39,52 @@ class MSCOCODataset(Dataset):
             result.append({'id': imid, 'anns': anns})
             
         return result
+    
+    def get_anns(self):
+        result = {}
+        for annid in tqdm.tqdm_notebook(self.annids):
+#             ann = self.coco.loadAnns([annid])[0]['caption']
+#             if self.text_transform:
+#                 ann = self.text_transform(ann)
+            result[annid] = self.get_ann(annid)
+            
+        return result
         
+        #preload = False,
+    def __init__(self, annFile, imagesDir, transform = None, 
+                 mode = 'pic2many', text_transform = None):
         
-    def __init__(self, annFile, imagesDir, preload = False, transform = None, mode = 'pic2many', text_transform = None):
         self.transform = transform
+        self.text_transform = text_transform
+        
         self.coco = COCO(annFile)
+        
         self.imagesDir = imagesDir
         self.imageids = self.coco.getImgIds()
         self.annids = self.coco.getAnnIds()
-        self._data_preload = []
-        self.text_transform = text_transform
+        
+        self.preload = False
+        self.preload_anns = False
+        
+        #self._data_preload = []
+        
         
         self.mode = mode
         
-        if preload == True:
-            self.__preload()
-        self.preload = preload
+#         if preload == True:
+#             self.__preload()
+#         self.preload = preload
+        
+        self.anns = {}
+        
+        
+    def preload_anotations(self):
+        self.anns = self.get_anns()
+        self.preload_anns = True
+        
     
-    def __preload(self):
+    def preload_data(self):
+        self.preload = True
         for sample in tqdm.tqdm_notebook(self):        
             self._data_preload.append(sample)
 #             if self.mode == PIC2MANY or self.mode == PIC2RAND:
@@ -76,8 +106,7 @@ class MSCOCODataset(Dataset):
 #                 sample = {'id': imid, 'image': image, 'anns': anns}
                 
 #                 self._data_preload.append(sample)
-       
-
+        
 
     def __len__(self):
         if self.mode == PIC2MANY:
@@ -121,6 +150,25 @@ class MSCOCODataset(Dataset):
 
             return sample
         
+        
+    
+    def get_ann(self, annid):
+        
+        if self.preload_anns == True:
+            return self.anns[annid]
+        
+        ann = self.coco.loadAnns([annid])[0]['caption']
+        if self.text_transform:
+            ann = self.text_transform(ann)
+        return ann
+    
+#         if self.text_transform:
+#             if self.mode == PIC2MANY:
+#                 for idx in range(len(anns)):
+#                     anns[idx] = self.text_transform(anns[idx])
+                    
+#             elif self.mode == PIC2RAND or self.mode == ANN2PIC:
+#                 anns = self.text_transform(anns)
        
 
     def __getitem__(self, idx):
@@ -134,22 +182,24 @@ class MSCOCODataset(Dataset):
         img_file_name = item_data['image_file']
         imid = item_data['id']
         annids = item_data['anns_ids']
-        anns = item_data['anns']
+        #anns = item_data['anns']
         
-        image = numpy2image(io.imread(img_file_name))
+        image = io.imread(img_file_name)
+        
+        # for black-white images
+        if len(image.shape) != 3:
+            return self.__getitem__(0)
+        
+        image = numpy2image(image)
         if self.transform:
             image = self.transform(image)
-            
-        if self.text_transform:
-            if self.mode == PIC2MANY:
-                for idx in range(len(anns)):
-                    anns[idx] = self.text_transform(anns[idx])
-                    
-            elif self.mode == PIC2RAND or self.mode == ANN2PIC:
-                anns = self.text_transform(anns)
                 
         
-        sample = {'imid': imid, 'image': image, 'anns': anns}
+        #sample = {'imid': imid, 'image': image, 'anns': anns}
+        if self.mode == ANN2PIC or self.mode == PIC2RAND:
+            sample = {'image': image, 'anns': annids[0]}
+        else:
+            sample = {'image': image, 'anns': annids}
 
         return sample
             
