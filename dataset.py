@@ -76,6 +76,13 @@ class MSCOCODataset(Dataset):
 #         self.preload = preload
         
         self.anns = {}
+        self.images_cnn = {}
+        
+        self.saved_item = self.__getitem__(0)
+        
+    def __kostyl_create_image_cnn(self):
+        self.images_cnn = {}
+        self.saved_item = self.__getitem__(0)
         
         
     def preload_anotations(self):
@@ -184,22 +191,37 @@ class MSCOCODataset(Dataset):
         annids = item_data['anns_ids']
         #anns = item_data['anns']
         
-        image = io.imread(img_file_name)
         
-        # for black-white images
-        if len(image.shape) != 3:
-            return self.__getitem__(0)
-        
-        image = numpy2image(image)
-        if self.transform:
-            image = self.transform(image)
+        if self.images_cnn.get(idx, None) is None:
+            image = io.imread(img_file_name)
+            # for black-white images
+            if len(image.shape) != 3:
+                return self.saved_item
+#                 image = np.stack([image, image, image]).astype('uint8')
+#                 #print("black-white")
+#                 print(image)
+#                 image = numpy2image(image)
+
+            else:
+                image = numpy2image(image)
+                            
+                if self.transform:
+                    image = self.transform(image)
+        else:
+            image = self.images_cnn[idx]
                 
         
         #sample = {'imid': imid, 'image': image, 'anns': anns}
         if self.mode == ANN2PIC or self.mode == PIC2RAND:
-            sample = {'image': image, 'anns': annids[0]}
+            
+            ann_len = len(self.get_ann(annids[0]))
+            
+            sample = {'imid': imid, 'image': image, 'anns': annids[0], 'ann_len': ann_len}
         else:
-            sample = {'image': image, 'anns': annids}
+            
+            ann_len = int(np.array([len(self.get_ann(idx)) for idx in  annids]).mean())
+            
+            sample = {'imid': imid, 'image': image, 'anns': annids, 'ann_len': ann_len }
 
         return sample
             
